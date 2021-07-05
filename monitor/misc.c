@@ -2192,29 +2192,36 @@ void hmp_ps_list(Monitor *mon, const QDict *qdict) {
 
     vaddr tasks_offset = 0x420;
     vaddr comm_offset = 0x6d8;
-    vaddr pid_offset = 0x520;
+    vaddr pid_offset = 0x524;
     // vaddr state_offset = 0x20;
 
     vaddr next_pointer = 0x0;
 
     char comm_buf[16];
     uint8_t next_pointer_buf[8];
-    int pid_buf[1];
+    uint8_t pid_buf[4];
+    int pid = 0;
 
     int i;
 
     while (next_pointer != init_task_address + tasks_offset) {
         // read task id
-        cpu_memory_rw_debug(cs, task_start_address + pid_offset, pid_buf, 1, 0);
+        cpu_memory_rw_debug(cs, task_start_address + pid_offset, pid_buf, 4, 0);
+        for (i = 3; i >= 0; i--) {
+            pid = pid << 8;
+            pid += pid_buf[i];
+        }
 
         // read task comm
         cpu_memory_rw_debug(cs, task_start_address + comm_offset, comm_buf, 16, 0);
 
+        monitor_printf(mon, "process: (name = %s) (pid = %d)\n", comm_buf, pid);
+
         // read next pointer val
         cpu_memory_rw_debug(cs, task_start_address + tasks_offset, next_pointer_buf, 8, 0);
 
-        monitor_printf(mon, "process: (name = %s) (pid = %d)\n", comm_buf, pid_buf[0]);
         next_pointer = 0;
+        pid = 0;
         for (i = 7; i >= 0; i--) {
             next_pointer = next_pointer << 8;
             next_pointer += next_pointer_buf[i];
