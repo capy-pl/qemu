@@ -2184,3 +2184,41 @@ void monitor_init_globals(void)
     sortcmdlist();
     qemu_mutex_init(&mon_fdsets_lock);
 }
+
+void hmp_ps_list(Monitor *mon, const QDict *qdict) {
+    CPUState *cs = mon_get_cpu(mon);
+    vaddr init_task_address = 0xffff800011b82e40;
+    vaddr task_start_address = init_task_address;
+
+    vaddr tasks_offset = 0x420;
+    vaddr comm_offset = 0x6d8;
+    vaddr pid_offset = 0x520;
+    // vaddr state_offset = 0x20;
+
+    vaddr next_pointer = 0x0;
+
+    char comm_buf[16];
+    uint8_t next_pointer_buf[8];
+    int pid_buf[1];
+
+    int i;
+
+    while (next_pointer != init_task_address + tasks_offset) {
+        // read task id
+        cpu_memory_rw_debug(cs, task_start_address + pid_offset, pid_buf, 1, 0);
+
+        // read task comm
+        cpu_memory_rw_debug(cs, task_start_address + comm_offset, comm_buf, 16, 0);
+
+        // read next pointer val
+        cpu_memory_rw_debug(cs, task_start_address + tasks_offset, next_pointer_buf, 8, 0);
+
+        monitor_printf(mon, "process: (name = %s) (pid = %d)\n", comm_buf, pid_buf[0]);
+        next_pointer = 0;
+        for (i = 7; i >= 0; i--) {
+            next_pointer = next_pointer << 8;
+            next_pointer += next_pointer_buf[i];
+        }
+        task_start_address = next_pointer - tasks_offset;
+    }
+}

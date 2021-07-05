@@ -1861,3 +1861,16 @@ ERST
         .flags      = "p",
     },
 
+    {
+        .name       = "pslist",
+        .args_type  = "",
+        .params     = "",
+        .help       = "List running process",
+        .cmd        = hmp_ps_list,
+    },
+
+SRST
+@item pslist
+@findex pslist
+List running process
+ERST
