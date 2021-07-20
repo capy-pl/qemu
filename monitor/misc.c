@@ -77,6 +77,7 @@
 #include "qapi/qmp-event.h"
 #include "sysemu/cpus.h"
 #include "qemu/cutils.h"
+#include "vmi/vmi.h"
 
 #if defined(TARGET_S390X)
 #include "hw/s390x/storage-keys.h"
@@ -2185,47 +2186,111 @@ void monitor_init_globals(void)
     qemu_mutex_init(&mon_fdsets_lock);
 }
 
+static void clear(uint8_t *arr, int len) {
+    int i;
+    for (i = 0; i < len; i++) {
+        arr[i] = 0;
+    }
+}
+
 void hmp_ps_list(Monitor *mon, const QDict *qdict) {
     CPUState *cs = mon_get_cpu(mon);
+    ARMCPU *armcpu = ARM_CPU(cs);
     vaddr init_task_address = 0xffff800011b82e40;
     vaddr task_start_address = init_task_address;
 
     vaddr tasks_offset = 0x420;
     vaddr comm_offset = 0x6d8;
     vaddr pid_offset = 0x524;
+    vaddr mm_offset = 0x470;
+    vaddr pgd_offset = 0x40;
     // vaddr state_offset = 0x20;
 
-    vaddr next_pointer = 0x0;
+    // Linear mapping offset
+    vaddr lm_offset = 0xfffeffffc0000000;
 
-    char comm_buf[16];
-    uint8_t next_pointer_buf[8];
+    vaddr next_pointer = 0x0;
+    vaddr mm_pointer = 0x0;
+    vaddr pgd = 0x0;
+
+    uint8_t comm_buf[16];
     uint8_t pid_buf[4];
+    uint8_t mm_buf[8];
+    uint8_t pgd_buf[8];
+    uint8_t next_pointer_buf[8];
+
     int pid = 0;
+    int prev_pid = -1;
 
     int i;
 
     while (next_pointer != init_task_address + tasks_offset) {
+        pid = 0;
+        pgd = 0;
+        mm_pointer = 0;
+    
         // read task id
         cpu_memory_rw_debug(cs, task_start_address + pid_offset, pid_buf, 4, 0);
         for (i = 3; i >= 0; i--) {
-            pid = pid << 8;
-            pid += pid_buf[i];
+            pid = pid << 8 | pid_buf[i];
+        }
+        clear(pid_buf, 4);
+
+        // read mm pointer
+        cpu_memory_rw_debug(cs, task_start_address + mm_offset, mm_buf, 8, 0); 
+        for (i = 7; i >= 0; i--) {
+            mm_pointer = mm_pointer << 8 | mm_buf[i];
+        }
+        clear(mm_buf, 8);
+
+        if (mm_pointer != 0) {
+            // read pgd val
+            cpu_memory_rw_debug(cs, mm_pointer + pgd_offset, pgd_buf, 8, 0);
+            for (i = 7; i >= 0; i--) {
+                pgd = pgd << 8 | pgd_buf[i];
+            }
+            clear(pgd_buf, 8);
+        } else {
+            pgd = 0;
         }
 
         // read task comm
         cpu_memory_rw_debug(cs, task_start_address + comm_offset, comm_buf, 16, 0);
 
-        monitor_printf(mon, "process: (name = %s) (pid = %d)\n", comm_buf, pid);
+        monitor_printf(mon, "process %s\n", comm_buf);
+        monitor_printf(mon, "\t\t\t\tpid = %d\n", pid);
+        monitor_printf(mon, "\t\t\t\ttasks = %llx\n", task_start_address + tasks_offset);
+        if (pgd != 0) {
+            monitor_printf(mon, "\t\t\t\tpgd = %llx\n", pgd - lm_offset);
+        } else {
+            monitor_printf(mon, "\t\t\t\tpgd = NULL\n");
+        }
+        clear(comm_buf, 16);
 
         // read next pointer val
-        cpu_memory_rw_debug(cs, task_start_address + tasks_offset, next_pointer_buf, 8, 0);
-
-        next_pointer = 0;
-        pid = 0;
-        for (i = 7; i >= 0; i--) {
-            next_pointer = next_pointer << 8;
-            next_pointer += next_pointer_buf[i];
+        if (cpu_memory_rw_debug(cs, task_start_address + tasks_offset, next_pointer_buf, 8, 0) == 0) {
+            next_pointer = 0;
+            for (i = 7; i >= 0; i--) {
+                next_pointer = next_pointer << 8 | next_pointer_buf[i];
+            }
+            clear(next_pointer_buf, 8);
+        } else {
+            continue;
         }
+    
+        if (pid == prev_pid) {
+            monitor_printf(mon, "Error: stop traversing.\n");
+            monitor_printf(mon, "Error: next pointer : %llx\n", next_pointer);
+            break;
+        }
+        prev_pid = pid;
         task_start_address = next_pointer - tasks_offset;
     }
+}
+
+void hmp_ttbr(Monitor *mon, const QDict *qdict) {
+    CPUState *cs = mon_get_cpu(mon);
+    ARMCPU *armcpu = ARM_CPU(cs);
+    vaddr mask = 0xffffffffffff;
+    monitor_printf(mon, "TTBR0_EL1 = 0x%llx\n", armcpu->env.cp15.ttbr0_ns & mask);
 }

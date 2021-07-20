@@ -1874,3 +1874,17 @@ SRST
 @findex pslist
 List running process
 ERST
+
+    {
+        .name       = "ttbr",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Print current ttbr0 value",
+        .cmd        = hmp_ttbr,
+    },
+
+SRST
+@item ttbr
+@findex ttbr
+Print current ttbr0 value
+ERST

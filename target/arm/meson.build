@@ -55,6 +55,7 @@ arm_softmmu_ss.add(files(
 ))
 
 subdir('hvf')
+subdir('vmi')
 
 target_arch += {'arm': arm_ss}
 target_softmmu_arch += {'arm': arm_softmmu_ss}
