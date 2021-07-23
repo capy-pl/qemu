@@ -1888,3 +1888,44 @@ SRST
 @findex ttbr
 Print current ttbr0 value
 ERST
+    {
+        .name       = "vmi_init",
+        .args_type  = "",
+        .params     = "",
+        .help       = "init the vmi system",
+        .cmd        = hmp_vmi_init,
+    },
+
+SRST
+
+@item vmi_init
+@findex vmi_init
+init the vmi system
+ERST
+    {
+        .name       = "vmi_listen",
+        .args_type  = "ps_name:s,file_path:s",
+        .params     = "[ps_name] [file_path]",
+        .help       = "introspect target process by name and log the information to specified file",
+        .cmd        = hmp_vmi_listen,
+    },
+
+SRST
+@item vmi_listen
+@findex vmi_listen
+introspect target process by name and log the information to specified file
+ERST
+
+    {
+        .name       = "vmi_get_pgd",
+        .args_type  = "ps_name:s",
+        .params     = "[ps_name]",
+        .help       = "get pgd for specified process",
+        .cmd        = hmp_vmi_get_pgd,
+    },
+
+SRST
+@item vmi_get_pgd
+@findex vmi_get_pgd
+get pgd for specified process
+ERST

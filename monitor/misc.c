@@ -2294,3 +2294,40 @@ void hmp_ttbr(Monitor *mon, const QDict *qdict) {
     vaddr mask = 0xffffffffffff;
     monitor_printf(mon, "TTBR0_EL1 = 0x%llx\n", armcpu->env.cp15.ttbr0_ns & mask);
 }
+
+void hmp_vmi_init(Monitor *mon, const QDict *qdict) {
+    vmi_init();
+}
+
+void hmp_vmi_listen(Monitor *mon, const QDict *qdict) {
+    const char *ps_name = qdict_get_try_str(qdict, "ps_name");
+    const char *file_path = qdict_get_try_str(qdict, "file_path");
+
+    if (!ps_name) {
+        monitor_printf(mon, "process name is not specified\n");
+        return;
+    }
+
+    if (!file_path) {
+        monitor_printf(mon, "file path is not specified\n");
+        return;
+    }
+
+    vmi_listen(ps_name, file_path);
+}
+
+void hmp_vmi_get_pgd(Monitor *mon, const QDict *qdict) {
+    const char *ps_name = qdict_get_try_str(qdict, "ps_name");
+    vaddr pgd;
+    CPUState *cs = mon_get_cpu(mon);
+
+    if (vmi_get_ps_pgd(cs, ps_name, &pgd)) {
+        monitor_printf(mon, "pgd: %llx\n", pgd);
+    } else {
+        monitor_printf(mon, "process not found.");
+    }
+}
+
+void hmp_vmi_stop(Monitor *mon, const QDict *qdict) {
+
+}

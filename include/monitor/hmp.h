@@ -135,5 +135,9 @@ void hmp_replay_delete_break(Monitor *mon, const QDict *qdict);
 void hmp_replay_seek(Monitor *mon, const QDict *qdict);
 void hmp_ps_list(Monitor *mon, const QDict *qdict);
 void hmp_ttbr(Monitor *mon, const QDict *qdict);
-
+void hmp_vmi_init(Monitor *mon, const QDict *qdict);
+void hmp_vmi_listen(Monitor *mon, const QDict *qdict);
+void hmp_vmi_stop(Monitor *mon, const QDict *qdict);
+void hmp_vmi_get_pgd(Monitor *mon, const QDict *qdict);
 #endif
+
