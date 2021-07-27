@@ -42,6 +42,7 @@
 #include "sysemu/cpu-timers.h"
 #include "sysemu/replay.h"
 #include "internal.h"
+#include "vmi/vmi.h"
 
 /* -icount align implementation. */
 
@@ -63,9 +64,6 @@ typedef struct SyncClocks {
 
 static int64_t max_delay;
 static int64_t max_advance;
-static uint64_t prev_ttbr0_location;
-// static uint64_t prev_sp0_location;
-static FILE *fptr;
 
 static void align_clocks(SyncClocks *sc, CPUState *cpu)
 {
@@ -165,14 +163,11 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
     uintptr_t ret;
     TranslationBlock *last_tb;
     const void *tb_ptr = itb->tc.ptr;
-    ARMCPU *armcpu = ARM_CPU(cpu);
-    CPUARMState *envarm = &armcpu->env;
-    if (fptr == 0) {
-        fptr = fopen("program.txt", "a");
-    } else {
-        if (envarm->cp15.ttbr0_ns!= prev_ttbr0_location) {
-            fprintf(fptr, "Page Table Switch(ttbr0_el0) from %llx to %llx\n", prev_ttbr0_location, envarm->cp15.ttbr0_ns);
-            prev_ttbr0_location = envarm->cp15.ttbr0_ns;
+
+    if (vmi_is_enabled()) {
+        vmi_check_pgd(cpu);
+        if (vmi_is_target_ps(cpu)) {
+            vmi_introspect(cpu);
         }
     }
 

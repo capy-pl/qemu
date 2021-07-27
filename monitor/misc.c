@@ -2195,7 +2195,6 @@ static void clear(uint8_t *arr, int len) {
 
 void hmp_ps_list(Monitor *mon, const QDict *qdict) {
     CPUState *cs = mon_get_cpu(mon);
-    ARMCPU *armcpu = ARM_CPU(cs);
     vaddr init_task_address = 0xffff800011b82e40;
     vaddr task_start_address = init_task_address;
 
@@ -2302,6 +2301,7 @@ void hmp_vmi_init(Monitor *mon, const QDict *qdict) {
 void hmp_vmi_listen(Monitor *mon, const QDict *qdict) {
     const char *ps_name = qdict_get_try_str(qdict, "ps_name");
     const char *file_path = qdict_get_try_str(qdict, "file_path");
+    CPUState *cs = mon_get_cpu(mon);
 
     if (!ps_name) {
         monitor_printf(mon, "process name is not specified\n");
@@ -2313,7 +2313,7 @@ void hmp_vmi_listen(Monitor *mon, const QDict *qdict) {
         return;
     }
 
-    vmi_listen(ps_name, file_path);
+    vmi_listen(cs, ps_name, file_path);
 }
 
 void hmp_vmi_get_pgd(Monitor *mon, const QDict *qdict) {
@@ -2324,10 +2324,10 @@ void hmp_vmi_get_pgd(Monitor *mon, const QDict *qdict) {
     if (vmi_get_ps_pgd(cs, ps_name, &pgd)) {
         monitor_printf(mon, "pgd: %llx\n", pgd);
     } else {
-        monitor_printf(mon, "process not found.");
+        monitor_printf(mon, "process not found.\n");
     }
 }
 
 void hmp_vmi_stop(Monitor *mon, const QDict *qdict) {
-
+    vmi_stop();
 }
