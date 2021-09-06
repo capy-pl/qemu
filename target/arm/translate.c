@@ -30,6 +30,7 @@
 #include "qemu/bitops.h"
 #include "arm_ldst.h"
 #include "hw/semihosting/semihost.h"
+#include "vmi/vmi.h"
 
 #include "exec/helper-proto.h"
 #include "exec/helper-gen.h"

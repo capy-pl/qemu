@@ -3,6 +3,7 @@
 #include "qemu/osdep.h"
 #include "cpu.h"
 #include "string.h"
+#include "exec/exec-all.h"
 
 // init_task address
 static const vaddr init_task_address = 0xffff800011b82e40;
@@ -10,9 +11,12 @@ static const vaddr init_task_address = 0xffff800011b82e40;
 // task_struct member offset
 static const vaddr tasks_offset = 0x420;
 static const vaddr comm_offset = 0x6d8;
-// static const vaddr pid_offset = 0x524;
 static const vaddr mm_offset = 0x470;
 static const vaddr pgd_offset = 0x40;
+
+// user library function start address
+static const target_ulong printf_address = 0xfffff7ea62f8;
+static const target_ulong scanf_address = 0xfffff7ea7708;
 
 // kernel linear mapping area offset. by substract the number
 // from the kernel virtual address, we can get the physical address
@@ -22,8 +26,8 @@ static const vaddr lm_offset = 0xfffeffffc0000000;
 static const vaddr badr_mask = 0xffffffffffff;
 
 // vmi internal state
-// 0 for uninitialized, 1 for listening.
-static int vmi_state = 0;
+static int vmi_state = 0;   // 0 for uninitialized, 1 for listening
+static int vmi_entered = 0; // 0 exit, 1 entered
 static uint64_t prev_ttbr0;
 
 // target ps state
@@ -32,20 +36,13 @@ static vaddr target_pgd;
 static FILE *log_file;
 
 static bool vmi_read_vaddr(CPUState *cs, vaddr addr, uint8_t *buf, int length) {
-    // Not a good idea in tcg
-    // while (cpu_memory_rw_debug(cs, addr, buf, length, 0) != 0){
-    //     printf("Error: cannot read.\n");
-    // }
-    if (cpu_memory_rw_debug(cs, addr, buf, length, 0) == 0) {
-        return 1;
-    }
-    return 0;
+    return cpu_memory_rw_debug(cs, addr, buf, length, 0) == 0;
 }
 
 static vaddr buffer_to_pointer (uint8_t *buf) {
     vaddr p = 0;
     int i;
-    for (i = 7; i >=0; i--) {
+    for (i = 7; i >= 0; i--) {
         p = p << 8 | buf[i];
     }
     return p;
@@ -55,6 +52,7 @@ static vaddr buffer_to_pointer (uint8_t *buf) {
 static void clear_state() {
     if (target_ps) {
         free(target_ps);
+        target_ps = NULL;
     }
 
     if (target_pgd) {
@@ -63,11 +61,16 @@ static void clear_state() {
 
     if (log_file) {
         fclose(log_file);
+        log_file = NULL;
     }
 }
 
 bool vmi_is_enabled(void) {
     return vmi_state;
+}
+
+bool vmi_is_entered(void) {
+    return vmi_entered;
 }
 
 void vmi_check_pgd(CPUState *cs) {
@@ -88,7 +91,6 @@ bool vmi_is_target_ps(CPUState *cs) {
     return target_pgd && (armcpu->env.cp15.ttbr0_ns & badr_mask) == target_pgd;
 }
 
-// TODO: find a way to detect infinite loop and end it.
 // if success 1, else 0
 bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
     vaddr task_start_address = init_task_address;
@@ -107,7 +109,7 @@ bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
             next_pointer = 0x0;
             continue;
         }
-    
+
         // read task comm
         if (!vmi_read_vaddr(cs, task_start_address + comm_offset, comm_buf, 16)) {
             return 0;
@@ -124,7 +126,10 @@ bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
             if (!vmi_read_vaddr(cs, mm_pointer + pgd_offset, pointer_buf, 8)) {
                 return 0;
             }
+
             *target_pgd = buffer_to_pointer(pointer_buf) - lm_offset;
+            fprintf(log_file, "%s detected.\n", target_ps);
+            fflush(log_file);
             return 1;
         }
 
@@ -143,11 +148,24 @@ void vmi_init() {
     vmi_state = 1;
 }
 
-void vmi_introspect(CPUState *cs) {
-    fprintf(log_file, "Process %s is detected.\n", target_ps);
-    fprintf(log_file, "\t\t\t\tpgd = %llx\n", target_pgd);
+void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
+    ARMCPU *armcpu = ARM_CPU(cs);
 
-    vmi_stop();
+    vmi_entered = 1;
+
+    if (tb->pc == printf_address) {
+        fprintf(log_file, "%llx\n", armcpu->env.pc);
+    }
+
+    if (tb->pc == scanf_address) {
+        fprintf(log_file, "%llx\n", armcpu->env.pc);
+    }
+
+    fflush(log_file);
+}
+
+void vmi_exit_introspect(void) {
+    vmi_entered = 0;
 }
 
 // 0 for failed, 1 for success.

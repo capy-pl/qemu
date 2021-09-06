@@ -167,16 +167,16 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
     if (vmi_is_enabled()) {
         vmi_check_pgd(cpu);
         if (vmi_is_target_ps(cpu)) {
-            vmi_introspect(cpu);
+            vmi_enter_introspect(cpu, itb);
         }
     }
 
     qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
-                           "Trace %d: %p ["
-                           TARGET_FMT_lx "/" TARGET_FMT_lx "/%#x] %s\n",
-                           cpu->cpu_index, itb->tc.ptr,
-                           itb->cs_base, itb->pc, itb->flags,
-                           lookup_symbol(itb->pc));
+        "Trace %d: %p ["
+        TARGET_FMT_lx "/" TARGET_FMT_lx "/%#x] %s\n",
+        cpu->cpu_index, itb->tc.ptr,
+        itb->cs_base, itb->pc, itb->flags,
+        lookup_symbol(itb->pc));
 
 #if defined(DEBUG_DISAS)
     if (qemu_loglevel_mask(CPU_LOG_TB_CPU)
@@ -210,17 +210,21 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
 
     trace_exec_tb_exit(last_tb, *tb_exit);
 
+    vmi_exit_introspect();
+
     if (*tb_exit > TB_EXIT_IDX1) {
         /* We didn't start executing this TB (eg because the instruction
          * counter hit zero); we must restore the guest PC to the address
          * of the start of the TB.
          */
         CPUClass *cc = CPU_GET_CLASS(cpu);
+
         qemu_log_mask_and_addr(CPU_LOG_EXEC, last_tb->pc,
-                               "Stopped execution of TB chain before %p ["
-                               TARGET_FMT_lx "] %s\n",
-                               last_tb->tc.ptr, last_tb->pc,
-                               lookup_symbol(last_tb->pc));
+                            "Stopped execution of TB chain before %p ["
+                            TARGET_FMT_lx "] %s\n",
+                            last_tb->tc.ptr, last_tb->pc,
+                            lookup_symbol(last_tb->pc));
+
         if (cc->synchronize_from_tb) {
             cc->synchronize_from_tb(cpu, last_tb);
         } else {
@@ -414,7 +418,7 @@ void tb_set_jmp_target(TranslationBlock *tb, int n, uintptr_t addr)
     }
 }
 
-static inline void tb_add_jump(TranslationBlock *tb, int n,
+static inline void tb_add_jump(CPUState *cpu, TranslationBlock *tb, int n,
                                TranslationBlock *tb_next)
 {
     uintptr_t old;
@@ -444,10 +448,10 @@ static inline void tb_add_jump(TranslationBlock *tb, int n,
     qemu_spin_unlock(&tb_next->jmp_lock);
 
     qemu_log_mask_and_addr(CPU_LOG_EXEC, tb->pc,
-                           "Linking TBs %p [" TARGET_FMT_lx
-                           "] index %d -> %p [" TARGET_FMT_lx "]\n",
-                           tb->tc.ptr, tb->pc, n,
-                           tb_next->tc.ptr, tb_next->pc);
+                        "Linking TBs %p [" TARGET_FMT_lx
+                        "] index %d -> %p [" TARGET_FMT_lx "]\n",
+                        tb->tc.ptr, tb->pc, n,
+                        tb_next->tc.ptr, tb_next->pc);
     return;
 
  out_unlock_next:
@@ -482,7 +486,7 @@ static inline TranslationBlock *tb_find(CPUState *cpu,
 #endif
     /* See if we can patch the calling TB. */
     if (last_tb) {
-        tb_add_jump(last_tb, tb_exit, tb);
+        tb_add_jump(cpu, last_tb, tb_exit, tb);
     }
     return tb;
 }

@@ -31,6 +31,7 @@
 #include "trace-tcg.h"
 #include "trace/mem.h"
 #include "exec/plugin-gen.h"
+#include "vmi/vmi.h"
 
 /* Reduce the number of ifdefs below.  This assumes that all uses of
    TCGV_HIGH and TCGV_LOW are properly protected by a conditional that
@@ -2709,7 +2710,7 @@ void tcg_gen_goto_tb(unsigned idx)
 
 void tcg_gen_lookup_and_goto_ptr(void)
 {
-    if (TCG_TARGET_HAS_goto_ptr && !qemu_loglevel_mask(CPU_LOG_TB_NOCHAIN)) {
+    if (!vmi_is_enabled() && TCG_TARGET_HAS_goto_ptr && !qemu_loglevel_mask(CPU_LOG_TB_NOCHAIN)) {
         TCGv_ptr ptr;
 
         plugin_gen_disable_mem_helpers();
