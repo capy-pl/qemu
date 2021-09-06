@@ -1882,11 +1882,11 @@ ERST
         .help       = "Print current ttbr0 value",
         .cmd        = hmp_ttbr,
     },
-
 SRST
 @item ttbr
 @findex ttbr
 Print current ttbr0 value
+
 ERST
     {
         .name       = "vmi_init",
@@ -1895,7 +1895,6 @@ ERST
         .help       = "init the vmi system",
         .cmd        = hmp_vmi_init,
     },
-
 SRST
 
 @item vmi_init
@@ -1909,11 +1908,11 @@ ERST
         .help       = "introspect target process by name and log the information to specified file",
         .cmd        = hmp_vmi_listen,
     },
-
 SRST
 @item vmi_listen
 @findex vmi_listen
 introspect target process by name and log the information to specified file
+
 ERST
 
     {
@@ -1928,4 +1927,18 @@ SRST
 @item vmi_get_pgd
 @findex vmi_get_pgd
 get pgd for specified process
+ERST
+
+    {
+        .name       = "vmi_stop",
+        .args_type  = "",
+        .params     = "",
+        .help       = "stop the introspection tool",
+        .cmd        = hmp_vmi_stop,
+    },
+
+SRST
+@item vmi_stop
+@findex vmi_stop
+stop the introspection tool
 ERST
