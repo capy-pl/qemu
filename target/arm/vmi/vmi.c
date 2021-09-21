@@ -146,7 +146,7 @@ bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
             }
 
             *target_pgd = buffer_to(pointer_buf, 8) - lm_offset;
-            fprintf(log_file, "[%lld] process detected. (pid=%d, ttbr0_el1=%llu).\n", QEMU_HOST_CLOCK_TIME, pid, *target_pgd);
+            fprintf(log_file, "[%lld] %s detected,pid=%d,ttbr0_el1=%llu\n", QEMU_HOST_CLOCK_TIME, ps_name, pid, *target_pgd);
             fflush(log_file);
             return 1;
         }
@@ -173,12 +173,14 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
 
     if (tb->pc == printf_address) {
         fprintf(log_file, "[%lld] ", QEMU_HOST_CLOCK_TIME);
-        fprintf(log_file, "pc=%llx, printf\n", armcpu->env.pc);
+        fprintf(log_file, "pc=%llx,", armcpu->env.pc);
+        fprintf(log_file, "Function=printf\n");
     }
 
     if (tb->pc == scanf_address) {
         fprintf(log_file, "[%lld] ", QEMU_HOST_CLOCK_TIME);
-        fprintf(log_file, "pc=%llx, scanf\n", armcpu->env.pc);
+        fprintf(log_file, "pc=%llx,", armcpu->env.pc);
+        fprintf(log_file, "Function=scanf\n");
     }
 
     fflush(log_file);
