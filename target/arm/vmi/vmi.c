@@ -1,9 +1,13 @@
 #include "vmi/vmi.h"
 #include "qemu/ctype.h"
 #include "qemu/osdep.h"
+#include "qemu/timer.h"
 #include "cpu.h"
 #include "string.h"
 #include "exec/exec-all.h"
+#include "monitor/monitor-internal.h"
+
+#define QEMU_HOST_CLOCK_TIME qemu_clock_get_ms(QEMU_CLOCK_HOST) 
 
 // init_task address
 static const vaddr init_task_address = 0xffff800011b82e40;
@@ -13,6 +17,7 @@ static const vaddr tasks_offset = 0x420;
 static const vaddr comm_offset = 0x6d8;
 static const vaddr mm_offset = 0x470;
 static const vaddr pgd_offset = 0x40;
+static const vaddr pid_offset = 0x524;
 
 // user library function start address
 static const target_ulong printf_address = 0xfffff7ea62f8;
@@ -34,15 +39,16 @@ static uint64_t prev_ttbr0;
 static char *target_ps;
 static vaddr target_pgd;
 static FILE *log_file;
+static int pid;
 
 static bool vmi_read_vaddr(CPUState *cs, vaddr addr, uint8_t *buf, int length) {
     return cpu_memory_rw_debug(cs, addr, buf, length, 0) == 0;
 }
 
-static vaddr buffer_to_pointer (uint8_t *buf) {
+static vaddr buffer_to (uint8_t *buf, uint size) {
     vaddr p = 0;
     int i;
-    for (i = 7; i >= 0; i--) {
+    for (i = size; i >= 0; i--) {
         p = p << 8 | buf[i];
     }
     return p;
@@ -57,6 +63,10 @@ static void clear_state() {
 
     if (target_pgd) {
         target_pgd = NULL;
+    }
+
+    if (pid) {
+        pid = NULL;
     }
 
     if (log_file) {
@@ -98,6 +108,7 @@ bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
     vaddr prev_task_address = 0x0;
     vaddr mm_pointer = 0x0;
     uint8_t pointer_buf[8];
+    uint8_t pid_buf[4];
     uint8_t comm_buf[16];
 
     if (ps_name == NULL || strlen(ps_name) == 0) return false;
@@ -116,19 +127,26 @@ bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
         }
 
         if (strcmp((char *)comm_buf, ps_name) == 0) {
+            // read pid
+            if (!vmi_read_vaddr(cs, task_start_address + pid_offset, pid_buf, 4)) {
+                return 0;
+            }
+
+            pid = buffer_to(pid_buf, 4);
+
             // read mm pointer
             if (!vmi_read_vaddr(cs, task_start_address + mm_offset, pointer_buf, 8)) {
                 return 0;
             }
     
-            mm_pointer = buffer_to_pointer(pointer_buf);
+            mm_pointer = buffer_to(pointer_buf, 8);
 
             if (!vmi_read_vaddr(cs, mm_pointer + pgd_offset, pointer_buf, 8)) {
                 return 0;
             }
 
-            *target_pgd = buffer_to_pointer(pointer_buf) - lm_offset;
-            fprintf(log_file, "%s detected.\n", target_ps);
+            *target_pgd = buffer_to(pointer_buf, 8) - lm_offset;
+            fprintf(log_file, "[%lld] process detected. (pid=%d, ttbr0_el1=%llu).\n", QEMU_HOST_CLOCK_TIME, pid, *target_pgd);
             fflush(log_file);
             return 1;
         }
@@ -138,7 +156,7 @@ bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
         }
     
         prev_task_address = task_start_address;
-        next_pointer = buffer_to_pointer(pointer_buf);
+        next_pointer = buffer_to(pointer_buf, 8);
         task_start_address = next_pointer - tasks_offset;
     }
     return 0;
@@ -154,11 +172,13 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
     vmi_entered = 1;
 
     if (tb->pc == printf_address) {
-        fprintf(log_file, "%llx\n", armcpu->env.pc);
+        fprintf(log_file, "[%lld] ", QEMU_HOST_CLOCK_TIME);
+        fprintf(log_file, "pc=%llx, printf\n", armcpu->env.pc);
     }
 
     if (tb->pc == scanf_address) {
-        fprintf(log_file, "%llx\n", armcpu->env.pc);
+        fprintf(log_file, "[%lld] ", QEMU_HOST_CLOCK_TIME);
+        fprintf(log_file, "pc=%llx, scanf\n", armcpu->env.pc);
     }
 
     fflush(log_file);
