@@ -14,7 +14,7 @@
                 "-M virt,highmem=off",
                 "-accel hvf",
                 "-cpu cortex-a72",
-                "-smp 4",
+                "-smp 6",
                 "-m 4096",
                 "-drive file=~/ubuntu-img/pflash0.img,format=raw,if=pflash,readonly=on",
                 "-drive file=~/ubuntu-img/pflash1.img,format=raw,if=pflash",

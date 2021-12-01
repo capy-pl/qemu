@@ -7,7 +7,7 @@
 #include "exec/exec-all.h"
 #include "monitor/monitor-internal.h"
 
-#define QEMU_HOST_CLOCK_TIME qemu_clock_get_ms(QEMU_CLOCK_HOST) 
+#define QEMU_HOST_CLOCK_TIME qemu_clock_get_us(QEMU_CLOCK_HOST) 
 
 // init_task address
 static const vaddr init_task_address = 0xffff800011b82e40;
@@ -20,8 +20,13 @@ static const vaddr pgd_offset = 0x40;
 static const vaddr pid_offset = 0x524;
 
 // user library function start address
-static const target_ulong printf_address = 0xfffff7ea62f8;
-static const target_ulong scanf_address = 0xfffff7ea7708;
+// malloc, free, fopen, fclose
+static const uint64_t printf_address = 0xfffff7ea62f8;
+static const uint64_t scanf_address = 0xfffff7ea7708;
+static const uint64_t malloc_address = 0xfffff7ea57d8;
+static const uint64_t free_address = 0xfffff7ed5dd0;
+static const uint64_t fopen_address = 0xfffff7ec0140;
+static const uint64_t fclose_address = 0xfffff7ebf658;
 
 // kernel linear mapping area offset. by substract the number
 // from the kernel virtual address, we can get the physical address
@@ -41,12 +46,15 @@ static vaddr target_pgd;
 static FILE *log_file;
 static int pid;
 
+// stack state
+static uint64_t return_address;
+
 static bool vmi_read_vaddr(CPUState *cs, vaddr addr, uint8_t *buf, int length) {
     return cpu_memory_rw_debug(cs, addr, buf, length, 0) == 0;
 }
 
-static vaddr buffer_to (uint8_t *buf, uint size) {
-    vaddr p = 0;
+static uint64_t buffer_to (uint8_t *buf, uint size) {
+    uint64_t p = 0;
     int i;
     for (i = size; i >= 0; i--) {
         p = p << 8 | buf[i];
@@ -72,6 +80,21 @@ static void clear_state() {
     if (log_file) {
         fclose(log_file);
         log_file = NULL;
+    }
+}
+
+static void print_string_literal(char *str, int len) {
+    for (int i = 0;i < len;i++) {
+        switch (str[i])
+        {
+        case '\n':
+            fprintf(log_file, "\\n");
+            break;
+
+        default:
+            fprintf(log_file, "%c", str[i]);
+            break;
+        }
     }
 }
 
@@ -146,8 +169,7 @@ bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
             }
 
             *target_pgd = buffer_to(pointer_buf, 8) - lm_offset;
-            fprintf(log_file, "[%lld] %s detected,pid=%d,ttbr0_el1=%llu\n", QEMU_HOST_CLOCK_TIME, ps_name, pid, *target_pgd);
-            fflush(log_file);
+            fprintf(log_file, "[%lld] %s detected,pid=%d,ttbr0_el1=%llx\n", QEMU_HOST_CLOCK_TIME, ps_name, pid, *target_pgd);
             return 1;
         }
 
@@ -171,19 +193,46 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
 
     vmi_entered = 1;
 
+     if (tb->pc == return_address) {
+        fprintf(log_file, "[%lld] pc=0x%llx, return value=%lld\n", QEMU_HOST_CLOCK_TIME, armcpu->env.pc, armcpu->env.xregs[0]);
+        return_address = 0;
+     }
+
     if (tb->pc == printf_address) {
-        fprintf(log_file, "[%lld] ", QEMU_HOST_CLOCK_TIME);
-        fprintf(log_file, "pc=%llx,", armcpu->env.pc);
-        fprintf(log_file, "Function=printf\n");
+        uint8_t arg1_buffer[256] = {"\0"};
+        vmi_read_vaddr(cs, armcpu->env.xregs[0], arg1_buffer, 128);
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function=printf, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1=");
+        print_string_literal((char *)arg1_buffer, strlen((char *)arg1_buffer));
+        fprintf(log_file, "\n");
+        return_address = armcpu->env.xregs[30];
     }
 
-    if (tb->pc == scanf_address) {
-        fprintf(log_file, "[%lld] ", QEMU_HOST_CLOCK_TIME);
-        fprintf(log_file, "pc=%llx,", armcpu->env.pc);
-        fprintf(log_file, "Function=scanf\n");
+    if (tb->pc == malloc_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function=malloc, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(size)=%d\n", armcpu->env.xregs[0]);
+        return_address = armcpu->env.xregs[30];
     }
 
-    fflush(log_file);
+    if (tb->pc == free_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function=free, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(ptr)=%d\n", armcpu->env.xregs[0]);
+        return_address = armcpu->env.xregs[30];
+    }
+
+    if (tb->pc == fopen_address) {
+
+    }
+
+    if (tb->pc == fclose_address) {
+
+    }
 }
 
 void vmi_exit_introspect(void) {
@@ -211,6 +260,7 @@ bool vmi_listen(CPUState *cs, const char *target_ps_name, const char *file_path)
 }
 
 void vmi_stop(void) {
+    fflush(log_file);
     vmi_state = 0;
     clear_state();
 }
