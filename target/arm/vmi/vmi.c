@@ -195,7 +195,7 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
 
      if (tb->pc == return_address) {
         fprintf(log_file, "[%lld] pc=0x%llx, return value=%lld\n", QEMU_HOST_CLOCK_TIME, armcpu->env.pc, armcpu->env.xregs[0]);
-        return_address = 0;
+        return_address = NULL;
      }
 
     if (tb->pc == printf_address) {
@@ -214,7 +214,7 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
         fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
         fprintf(log_file, "function=malloc, ");
         fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
-        fprintf(log_file, "args1(size)=%d\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args1(size)=%llu\n", armcpu->env.xregs[0]);
         return_address = armcpu->env.xregs[30];
     }
 
@@ -222,7 +222,7 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
         fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
         fprintf(log_file, "function=free, ");
         fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
-        fprintf(log_file, "args1(ptr)=%d\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args1(ptr)=%llu\n", armcpu->env.xregs[0]);
         return_address = armcpu->env.xregs[30];
     }
 
