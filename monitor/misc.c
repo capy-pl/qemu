@@ -2195,7 +2195,7 @@ static void clear(uint8_t *arr, int len) {
 
 void hmp_ps_list(Monitor *mon, const QDict *qdict) {
     CPUState *cs = mon_get_cpu(mon);
-    vaddr init_task_address = 0xffff800011b82e40;
+    vaddr init_task_address = 0xffff800012052ec0;
     vaddr task_start_address = init_task_address;
 
     vaddr tasks_offset = 0x420;

@@ -10,7 +10,7 @@
 #define QEMU_HOST_CLOCK_TIME qemu_clock_get_us(QEMU_CLOCK_HOST) 
 
 // init_task address
-static const vaddr init_task_address = 0xffff800011b82e40;
+static const vaddr init_task_address = 0xffff800012052ec0;
 
 // task_struct member offset
 static const vaddr tasks_offset = 0x420;
