@@ -106,12 +106,11 @@ bool vmi_is_entered(void) {
     return vmi_entered;
 }
 
-void vmi_check_pgd(CPUState *cs) {
-    ARMCPU *armcpu = ARM_CPU(cs);
+void vmi_check_pgd(ARMCPU *armcpu) {
     if (target_pgd) return;
     if (vmi_has_context_switch(armcpu)) {
         prev_ttbr0 = armcpu->env.cp15.ttbr0_ns;
-        vmi_get_ps_pgd(cs, target_ps, &target_pgd);
+        vmi_get_ps_pgd(armcpu, target_ps, &target_pgd);
     }
 }
 
@@ -119,13 +118,12 @@ bool vmi_has_context_switch(ARMCPU *armcpu) {
     return armcpu->env.cp15.ttbr0_ns != prev_ttbr0;
 }
 
-bool vmi_is_target_ps(CPUState *cs) {
-    ARMCPU *armcpu = ARM_CPU(cs);
+bool vmi_is_target_ps(ARMCPU *armcpu) {
     return target_pgd && (armcpu->env.cp15.ttbr0_ns & badr_mask) == target_pgd;
 }
 
 // if success 1, else 0
-bool vmi_get_ps_pgd(CPUState *cs, const char *ps_name, vaddr *target_pgd) {
+bool vmi_get_ps_pgd(ARMCPU *cs, const char *ps_name, vaddr *target_pgd) {
     vaddr task_start_address = init_task_address;
     vaddr next_pointer = 0x0;
     vaddr prev_task_address = 0x0;
@@ -191,12 +189,18 @@ void vmi_init() {
 void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
     ARMCPU *armcpu = ARM_CPU(cs);
 
-    vmi_entered = 1;
+    // TODO: record whether vmi is currently entered or exited
+    // vmi_entered = 1;
 
      if (tb->pc == return_address) {
         fprintf(log_file, "[%lld] pc=0x%llx, return value=%lld\n", QEMU_HOST_CLOCK_TIME, armcpu->env.pc, armcpu->env.xregs[0]);
         return_address = NULL;
      }
+
+    // test change return value in registers
+    // if (tb->pc == 0xaaaaaaaaa7b0) {
+    //     armcpu->env.xregs[0] = 10;
+    // }
 
     if (tb->pc == printf_address) {
         uint8_t arg1_buffer[256] = {"\0"};

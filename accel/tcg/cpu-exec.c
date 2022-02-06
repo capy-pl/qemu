@@ -163,6 +163,7 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
     uintptr_t ret;
     TranslationBlock *last_tb;
     const void *tb_ptr = itb->tc.ptr;
+    ARMCPU *armcpu = ARM_CPU(cpu);
 
     if (vmi_is_enabled()) {
         vmi_check_pgd(cpu);
