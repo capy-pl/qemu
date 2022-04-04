@@ -21,12 +21,24 @@ static const vaddr pid_offset = 0x524;
 
 // user library function start address
 // malloc, free, fopen, fclose
-static const uint64_t printf_address = 0xfffff7ea62f8;
-static const uint64_t scanf_address = 0xfffff7ea7708;
-static const uint64_t malloc_address = 0xfffff7ea57d8;
-static const uint64_t free_address = 0xfffff7ed5dd0;
-static const uint64_t fopen_address = 0xfffff7ec0140;
-static const uint64_t fclose_address = 0xfffff7ebf658;
+static const uint64_t memcpy_address = 0xfffff7eab750;
+static const uint64_t memmove_address = 0xfffffeab090;
+static const uint64_t strlen_address = 0xfffff7ea9cd8;
+static const uint64_t strncpy_address = 0xfffff7eaa0d8;
+static const uint64_t getenv_address = 0xfffff7e61e90;
+static const uint64_t thrd_join_address = 0xfffff7fb1860;
+static const uint64_t thrd_create_address = 0xfffff7fb17a0;
+static const uint64_t thrd_exit_address = 0xfffff7fb1850;
+static const uint64_t printf_address = 0xfffff7d7b2f8;
+static const uint64_t scanf_address = 0xfffff7d7b7a0;
+static const uint64_t malloc_address = 0xfffff7fe22f0;
+static const uint64_t calloc_address = 0xfffff7fe2418;
+static const uint64_t realloc_address = 0xfffff7fe2618;
+static const uint64_t free_address = 0xfffff7fe2450;
+static const uint64_t fopen_address = 0xfffff7d95140;
+static const uint64_t fclose_address = 0xfffff7d94658;
+static const uint64_t fwrite_address = 0xfffff7d95b50;
+static const uint64_t fread_address = 0xfffff7d955c8;
 
 // kernel linear mapping area offset. by substract the number
 // from the kernel virtual address, we can get the physical address
@@ -186,9 +198,7 @@ void vmi_init() {
     vmi_state = 1;
 }
 
-void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
-    ARMCPU *armcpu = ARM_CPU(cs);
-
+void vmi_enter_introspect(ARMCPU *armcpu, CPUState *cs, TranslationBlock *tb) {
     // TODO: record whether vmi is currently entered or exited
     // vmi_entered = 1;
 
@@ -198,7 +208,7 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
      }
 
     // test change return value in registers
-    // if (tb->pc == 0xaaaaaaaaa7b0) {
+    // if (tb->pc == return_address) {
     //     armcpu->env.xregs[0] = 10;
     // }
 
@@ -217,25 +227,124 @@ void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb) {
     if (tb->pc == malloc_address) {
         fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
         fprintf(log_file, "function=malloc, ");
-        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
         fprintf(log_file, "args1(size)=%llu\n", armcpu->env.xregs[0]);
         return_address = armcpu->env.xregs[30];
+    }
+
+    if (tb->pc == calloc_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function=calloc, ");
+        fprintf(log_file, "args1(num)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(size)=%llu\n", armcpu->env.xregs[1]);
+    }
+
+    if (tb->pc == realloc_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function=realloc, ");
+        fprintf(log_file, "args1(ptr)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(size)=%llu\n", armcpu->env.xregs[1]);
     }
 
     if (tb->pc == free_address) {
         fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
         fprintf(log_file, "function=free, ");
-        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
         fprintf(log_file, "args1(ptr)=%llu\n", armcpu->env.xregs[0]);
+    }
+
+    if (tb->pc == memcpy_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= memcpy, ");
+        fprintf(log_file, "args1(destination)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(source)=%llu\n", armcpu->env.xregs[1]);
+        fprintf(log_file, "args3(num)=%llu\n", armcpu->env.xregs[2]);
+    }
+
+    if (tb->pc == memmove_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= memmove, ");
+        fprintf(log_file, "args1(destination)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(source)=%llu\n", armcpu->env.xregs[1]);
+        fprintf(log_file, "args3(count)=%llu\n", armcpu->env.xregs[2]);
+    }
+
+    if (tb->pc == strncpy_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= strncpy, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(destination)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(source)=%llu\n", armcpu->env.xregs[1]);
+        fprintf(log_file, "args3(count)=%llu\n", armcpu->env.xregs[2]);
         return_address = armcpu->env.xregs[30];
     }
 
     if (tb->pc == fopen_address) {
-
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= strncpy, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(filename)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(mode)=%llu\n", armcpu->env.xregs[1]);
+        return_address = armcpu->env.xregs[30];
     }
 
     if (tb->pc == fclose_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= fclose, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(stream)=%llu\n", armcpu->env.xregs[0]);
+        return_address = armcpu->env.xregs[30];
+    }
 
+    if (tb->pc == thrd_create_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= thrd_create, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(thr)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(func)=%llu\n", armcpu->env.xregs[1]);
+        fprintf(log_file, "args2(arg)=%llu\n", armcpu->env.xregs[2]);
+
+        return_address = armcpu->env.xregs[30];
+    }
+
+    if (tb->pc == thrd_exit_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= thrd_exit, ");
+        fprintf(log_file, "args1(res)=%llu\n", armcpu->env.xregs[0]);
+    }
+
+    if (tb->pc == thrd_join_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= thrd_join, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(thr)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(res)=%llu\n", armcpu->env.xregs[1]);
+        return_address = armcpu->env.xregs[30];
+    }
+
+    if (tb->pc == getenv_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= getenv, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(name)=%llu\n", armcpu->env.xregs[0]);
+        return_address = armcpu->env.xregs[30];
+    }
+
+    if (tb->pc == fread_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= fread, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(ptr)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args2(size)=%llu\n", armcpu->env.xregs[1]);
+        fprintf(log_file, "args3(count)=%llu\n", armcpu->env.xregs[2]);
+        return_address = armcpu->env.xregs[30];
+    }
+
+    if (tb->pc == fopen_address) {
+        fprintf(log_file, "[%lld] cpu=%d, pc=0x%llx, ", QEMU_HOST_CLOCK_TIME, cs->cpu_index, armcpu->env.pc);
+        fprintf(log_file, "function= fopen, ");
+        fprintf(log_file, "return address=0x%llx, ", armcpu->env.xregs[30]);
+        fprintf(log_file, "args1(filename)=%llu\n", armcpu->env.xregs[0]);
+        fprintf(log_file, "args1(mode)=%llu\n", armcpu->env.xregs[1]);
+        return_address = armcpu->env.xregs[30];
     }
 }
 

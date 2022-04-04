@@ -11,7 +11,7 @@ void vmi_check_pgd(ARMCPU *armcpu);
 void vmi_stop(void);
 bool vmi_is_target_ps(ARMCPU *armcpu);
 bool vmi_get_ps_pgd(ARMCPU *cs, const char *ps_name, vaddr *target_pgd);
-void vmi_enter_introspect(CPUState *cs, TranslationBlock *tb);
+void vmi_enter_introspect(ARMCPU *armcpu, CPUState *cs, TranslationBlock *tb);
 void vmi_exit_introspect(void);
 bool vmi_is_enabled(void);
 bool vmi_is_entered(void);

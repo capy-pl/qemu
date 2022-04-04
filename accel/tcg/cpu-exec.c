@@ -168,7 +168,7 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
     if (vmi_is_enabled()) {
         vmi_check_pgd(armcpu);
         if (vmi_is_target_ps(armcpu)) {
-            vmi_enter_introspect(cpu, itb);
+            vmi_enter_introspect(armcpu, cpu, itb);
         }
     }
 
