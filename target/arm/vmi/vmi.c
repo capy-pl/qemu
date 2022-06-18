@@ -21,8 +21,8 @@ static const vaddr pid_offset = 0x524;
 
 // user library function start address
 // malloc, free, fopen, fclose
-static const uint64_t memcpy_address = 0xfffff7eab750;
-static const uint64_t memmove_address = 0xfffffeab090;
+static const uint64_t memcpy_address = 0xfffff7db0750;
+static const uint64_t memmove_address = 0xfffff7db0090;
 static const uint64_t strlen_address = 0xfffff7ea9cd8;
 static const uint64_t strncpy_address = 0xfffff7eaa0d8;
 static const uint64_t getenv_address = 0xfffff7e61e90;
